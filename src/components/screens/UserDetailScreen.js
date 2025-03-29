@@ -1,72 +1,61 @@
-import React, {useState, useEffect} from 'react';
-import {View, Text, StyleSheet, Image, Alert, ScrollView} from 'react-native';
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, {useEffect} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
+import {useDispatch, useSelector} from 'react-redux';
+import {
+  fetchUserDetailById,
+  clearUserDetailById,
+} from '../Redux/Slices/userDetailByIdSlice';
 import {baseUrl} from '../utils/api';
-import {Ionicons} from 'react-native-vector-icons';
 
 const UserDetailScreen = ({route}) => {
   const {userId} = route.params;
-  const [userDetails, setUserDetails] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
+  const userDetails = useSelector(state => state.userDetailById.userDetailById);
 
   useEffect(() => {
-    const fetchUserDetails = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
+    dispatch(fetchUserDetailById(userId));
 
-        if (!token) {
-          Alert.alert('Error', 'No token found. Please login again.');
-          return;
-        }
-
-        const response = await axios.get(`${baseUrl}/v1/get-user/${userId}`, {
-          headers: {Authorization: `Bearer ${token}`},
-        });
-        console.log(response);
-        setUserDetails(response.data.user);
-      } catch (error) {
-        console.error(
-          'Error fetching user details:',
-          error.response?.data || error,
-        );
-        Alert.alert('Error', 'Failed to fetch user details.');
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      dispatch(clearUserDetailById());
     };
+  }, [dispatch, userId]);
 
-    fetchUserDetails();
-  }, [userId]);
+  useEffect(() => {
+    console.log('User Details:', userDetails); // Debugging log
+  }, [userDetails]);
 
-  if (loading) {
-    return <Text style={styles.loadingText}>Loading user details...</Text>;
-  }
+
 
   if (!userDetails) {
     return <Text style={styles.errorText}>No user details found.</Text>;
   }
 
-  const {
-    profileThumbnail,
-    name,
-    phone,
-    email,
-    emailVerify,
-status,
-    createdAt,
-  } = userDetails;
-  console.log(userDetails);
+  const {profileThumbnail, name, phone, email, status, createdAt} = userDetails;
+
+  // Construct the image URL
+  const imageUrl = profileThumbnail
+    ? `${baseUrl}/uploads/profileThumbnail/${profileThumbnail}`
+    : 'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg?semt=ais_hybrid';
+
+  console.log('Image URL:', imageUrl); // Debugging log
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.profileContainer}>
         <Image
-          source={{
-            uri: profileThumbnail
-              ? `${baseUrl}/uploads/profileThumbnail/${profileThumbnail}`
-              : 'https://via.placeholder.com/120x120/cccccc/000000?text=No+Image',
-          }}
+          source={{uri: imageUrl}}
           style={styles.profileImage}
+          onError={e =>
+            console.log('Image failed to load:', e.nativeEvent.error)
+          }
+          onLoad={() => console.log('Image loaded successfully')}
         />
         <Text style={styles.profileName}>{name}</Text>
       </View>
@@ -78,19 +67,6 @@ status,
         <Text style={styles.detailText}>
           Email: <Text style={styles.detailValue}>{email}</Text>
         </Text>
-
-        <Text style={styles.detailText}>
-          Email Verified:{' '}
-          <Text
-            style={[
-              styles.detailValue,
-              emailVerify ? styles.verified : styles.notVerified,
-            ]}>
-         
-            {emailVerify ? "true" :"false"}
-          </Text>
-        </Text>
-
         <Text style={styles.detailText}>
           Status:{' '}
           <Text
@@ -98,11 +74,9 @@ status,
               styles.detailValue,
               status ? styles.active : styles.inactive,
             ]}>
-           
             {status ? ' Active' : ' Inactive'}
           </Text>
         </Text>
-
         <Text style={styles.detailText}>
           Created At:{' '}
           <Text style={styles.detailValue}>
@@ -133,7 +107,6 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 10,
-    // elevation: 5,
   },
   profileName: {
     fontSize: 24,
@@ -158,23 +131,13 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     fontWeight: '600',
-    color: '#007bff',
+    color: '#000',
   },
-  loadingText: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginTop: 20,
-  },
+
   errorText: {
     fontSize: 18,
     textAlign: 'center',
     marginTop: 20,
-    color: 'red',
-  },
-  verified: {
-    color: 'green',
-  },
-  notVerified: {
     color: 'red',
   },
   active: {

@@ -11,9 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
-import axios from 'axios';
-import {baseUrl} from '../utils/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useDispatch, useSelector} from 'react-redux';
+import {fetchUsers} from '../Redux/Slices/userSlice';
 import CheckBox from '@react-native-community/checkbox';
 
 const AssignProjectScreen = () => {
@@ -21,92 +20,28 @@ const AssignProjectScreen = () => {
   const route = useRoute();
   const {projectId} = route.params;
 
-  const [users, setUsers] = useState([]);
+  const dispatch = useDispatch();
+  const {users, loading, error} = useSelector(state => state.users);
+
   const [selectedUsers, setSelectedUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [description, setDescription] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Fetch users from API
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          Alert.alert('Error', 'No token found. Please login again.');
-          return;
-        }
+    dispatch(fetchUsers());
+  }, [dispatch]);
 
-        const response = await axios.get(`${baseUrl}/v1/get-all-user`, {
-          headers: {Authorization: `Bearer ${token}`},
-        });
-
-        if (response.data && response.data.users) {
-          setUsers(response.data.users);
-        } else {
-          Alert.alert('Error', 'Invalid user data received.');
-        }
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        Alert.alert('Error', 'Failed to fetch users.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUsers();
-  }, []);
-
-  // Toggle selection of users (Updated to prevent crashes)
   const toggleSelection = userId => {
-    setSelectedUsers(prevSelected => {
-      if (!userId) return prevSelected; // Ensure valid userId
-
-      const isSelected = prevSelected.includes(userId);
-      return isSelected
-        ? prevSelected.filter(id => id !== userId)
-        : [...prevSelected, userId];
-    });
-  };
-
-  // Assign selected users to the project
-  const handleAssign = async () => {
-    if (selectedUsers.length === 0) {
-      Alert.alert('Error', 'Please select at least one user to assign.');
-      return;
-    }
-
-    if (!description.trim()) {
-      Alert.alert('Error', 'Please enter a project description.');
-      return;
-    }
-
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'No token found. Please login again.');
-        return;
-      }
-
-      const response = await axios.post(
-        `${baseUrl}/v1/assign-project`,
-        {projectId, userId: selectedUsers, description},
-        {headers: {Authorization: `Bearer ${token}`}},
-      );
-
-      if (response.status === 201) {
-        Alert.alert('Success', 'Project assigned successfully.');
-        navigation.goBack();
-      }
-    } catch (error) {
-      console.error('Error assigning project:', error);
-      Alert.alert('Error', 'Failed to assign project.');
-    }
+    setSelectedUsers(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId],
+    );
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Assign Users to Project</Text>
+      <Text style={styles.heading}>Assign Users to Projects</Text>
 
       <TextInput
         style={styles.input}
@@ -117,7 +52,7 @@ const AssignProjectScreen = () => {
         numberOfLines={4}
       />
 
-      {/* Selected Users Display */}
+      {/* Show selected users */}
       <View style={styles.selectedUsersContainer}>
         {selectedUsers.length > 0 ? (
           selectedUsers.map(userId => {
@@ -133,7 +68,7 @@ const AssignProjectScreen = () => {
         )}
       </View>
 
-      {/* Open Dropdown Button */}
+      {/* Open User Selection Modal */}
       <TouchableOpacity
         style={styles.dropdownButton}
         onPress={() => setModalVisible(true)}>
@@ -145,7 +80,11 @@ const AssignProjectScreen = () => {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalHeading}>Select Users</Text>
-            <ScrollView>
+            {loading ? (
+              <Text>Loading users...</Text>
+            ) : error ? (
+              <Text style={{color: 'red'}}>{error}</Text>
+            ) : (
               <FlatList
                 data={users}
                 keyExtractor={user => user._id}
@@ -158,7 +97,7 @@ const AssignProjectScreen = () => {
                   </TouchableOpacity>
                 )}
               />
-            </ScrollView>
+            )}
             <TouchableOpacity
               style={styles.closeModalButton}
               onPress={() => setModalVisible(false)}>
@@ -167,16 +106,10 @@ const AssignProjectScreen = () => {
           </View>
         </View>
       </Modal>
-
-      {/* Assign Button */}
-      <TouchableOpacity style={styles.assignButton} onPress={handleAssign}>
-        <Text style={styles.assignButtonText}>Assign</Text>
-      </TouchableOpacity>
     </View>
   );
 };
 
-// Styles
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#f5f5f5', padding: 15},
   heading: {
@@ -188,15 +121,17 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: '#fff',
     padding: 10,
-    borderRadius: 8,
+    paddingBottom: 38,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#ccc',
     marginBottom: 15,
+    height: 70,
   },
   dropdownButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: '#000',
     padding: 10,
-    borderRadius: 8,
+    borderRadius: 20,
     alignItems: 'center',
     marginBottom: 10,
   },
@@ -210,31 +145,23 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: '#fff',
     padding: 20,
-    borderRadius: 10,
+    borderRadius: 20,
     width: '80%',
   },
   modalHeading: {fontSize: 20, fontWeight: 'bold', marginBottom: 10},
   userItem: {flexDirection: 'row', alignItems: 'center', padding: 10},
   userName: {fontSize: 16, marginLeft: 10},
   closeModalButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: 'black',
     padding: 10,
     marginTop: 10,
-    borderRadius: 5,
+    borderRadius: 20,
     alignItems: 'center',
   },
   closeModalButtonText: {color: '#fff', fontSize: 16},
-  assignButton: {
-    backgroundColor: '#007bff',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  assignButtonText: {color: '#fff', fontSize: 18, fontWeight: '600'},
   selectedUsersContainer: {marginBottom: 10},
   selectedUser: {fontSize: 16, color: '#333', marginVertical: 2},
-  placeholderText: {fontSize: 16, color: '#888'},
+  placeholderText: {fontSize: 16, color: 'black', textAlign: 'center'},
 });
 
 export default AssignProjectScreen;

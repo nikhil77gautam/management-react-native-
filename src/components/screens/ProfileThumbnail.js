@@ -7,34 +7,26 @@ import {
   Text,
   Alert,
 } from 'react-native';
+import {useDispatch, useSelector} from 'react-redux';
+import {fetchProfileThumbnail} from '../Redux/Slices/profileThumbnailSlice';
+import {useNavigation} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import {baseUrl} from '../utils/api';
-import {useNavigation} from '@react-navigation/native';
+import ProfileImg from '../../Image/user.png';
+import LogoutImg from '../../Image/logout.png';
 
 const ProfileThumbnail = () => {
-  const [profileImage, setProfileImage] = useState(null);
-  const [isDropdownVisible, setDropdownVisible] = useState(false);
+  const dispatch = useDispatch();
   const navigation = useNavigation();
+  const {profileThumbnail, loading} = useSelector(
+    state => state.profileThumbnail,
+  );
+  const [isDropdownVisible, setDropdownVisible] = useState(false);
 
   useEffect(() => {
-    const fetchProfileImage = async () => {
-      try {
-        const storedToken = await AsyncStorage.getItem('token');
-        if (!storedToken) return;
-
-        const response = await axios.get(`${baseUrl}/v1/profile-thumbnail`, {
-          headers: {Authorization: `Bearer ${storedToken}`},
-        });
-
-        setProfileImage(response.data?.profileThumbnail);
-      } catch (error) {
-        console.error('Error fetching profile image:', error);
-      }
-    };
-
-    fetchProfileImage();
-  }, []);
+    dispatch(fetchProfileThumbnail());
+  }, [dispatch]);
 
   const toggleDropdown = () => {
     setDropdownVisible(!isDropdownVisible);
@@ -71,9 +63,10 @@ const ProfileThumbnail = () => {
       <TouchableOpacity onPress={toggleDropdown}>
         <Image
           source={{
-            uri: profileImage
-              ? `${baseUrl}/uploads/profileThumbnail/${profileImage}`
-              : 'https://via.placeholder.com/100',
+            uri:
+              profileThumbnail > 0
+                ? `${baseUrl}/uploads/profileThumbnail/${profileThumbnail}`
+                : 'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg?semt=ais_hybrid',
           }}
           style={styles.profileImage}
         />
@@ -82,10 +75,16 @@ const ProfileThumbnail = () => {
       {isDropdownVisible && (
         <View style={styles.dropdown}>
           <TouchableOpacity onPress={handleProfileNavigate}>
-            <Text style={styles.dropdownItem}>Your Profile</Text>
+            <View style={styles.dropdownProfileContainer}>
+              <Text style={styles.dropdownProfile}>Profile</Text>
+              <Image source={ProfileImg} style={styles.dropdownProfileImg} />
+            </View>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout}>
-            <Text style={styles.dropdownItem}>Logout</Text>
+            <View style={styles.dropdownLogoutContainer}>
+              <Text style={styles.dropdownLogout}>Logout</Text>
+              <Image source={LogoutImg} style={styles.dropdownLogoutImg} />
+            </View>
           </TouchableOpacity>
         </View>
       )}
@@ -114,12 +113,49 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 2},
     shadowRadius: 5,
   },
-  dropdownItem: {
-    padding: 10,
-    fontSize: 16,
-    color: '#333',
+  dropdownProfileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
+  },
+
+  dropdownProfile: {
+    fontSize: 16,
+    color: 'green',
+    fontWeight: '600',
+    marginRight: 13,
+  },
+
+  dropdownProfileImg: {
+    width: 20,
+    height: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#ddd',
+    backgroundColor: '#f0f0f0',
+  },
+  dropdownLogoutContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+
+  dropdownLogout: {
+    fontSize: 16,
+    color: 'red',
+    fontWeight: '600',
+    marginRight: 10,
+  },
+
+  dropdownLogoutImg: {
+    width: 20,
+    height: 20,
   },
 });
 

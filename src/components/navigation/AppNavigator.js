@@ -21,6 +21,10 @@ import AssignProjectScreen from '../screens/AssignProjectScreen';
 import UserProjectScreen from '../screens/UserProjectScreen';
 import UserAssignProjectScreen from '../screens/UserAssignProjectScreen';
 import WorkHistory from '../screens/WorkHistoryScreen';
+import MaterialScreen from '../screens/MaterialScreen';
+import AddMaterial from '../screens/AddMaterial';
+import EditMaterial from '../screens/EditMaterial';
+import EditWorkHistory from '../screens/EditWorkHistoryScreen';
 
 const Stack = createStackNavigator();
 
@@ -46,6 +50,10 @@ export default function AppNavigator() {
             'UserProjects',
             'AllAssignProjects',
             'WorkHistory',
+            'Edit Work-History',
+            'Material',
+            'AddMaterial',
+            'EditMaterial',
           ].includes(route.name) ? (
             <ProfileThumbnail />
           ) : null,
@@ -53,27 +61,34 @@ export default function AppNavigator() {
       })}>
       {/* Authentication Screens */}
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-      <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
+      <Stack.Screen name="Forgot Password" component={ForgotPasswordScreen} />
+      <Stack.Screen name="Otp Verification" component={OtpVerificationScreen} />
 
       {/* Main Admin Screens */}
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="User" component={UserScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="AddUser" component={AddUserScreen} />
-      <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
-      <Stack.Screen name="EditUser" component={EditUserScreen} />
-      <Stack.Screen name="UserDetail" component={UserDetailScreen} />
-      <Stack.Screen name="AllProjects" component={AllProjectsScreen} />
-      <Stack.Screen name="EditProject" component={EditProjectScreen} />
-      <Stack.Screen name="ViewProject" component={ViewProjectScreen} />
-      <Stack.Screen name="AddProject" component={AddProjectScreen} />
-      <Stack.Screen name="AssignProject" component={AssignProjectScreen} />
-      <Stack.Screen name="UserProjects" component={UserProjectScreen} />
+      <Stack.Screen name="Reset Password" component={ResetPasswordScreen} />
+      <Stack.Screen name="Edit User" component={EditUserScreen} />
+      <Stack.Screen name="User Detail" component={UserDetailScreen} />
+      <Stack.Screen name="All Projects" component={AllProjectsScreen} />
+      <Stack.Screen name="Edit Project" component={EditProjectScreen} />
+      <Stack.Screen name="View Project" component={ViewProjectScreen} />
+      <Stack.Screen name="Add Project" component={AddProjectScreen} />
+      <Stack.Screen name="Assign Project" component={AssignProjectScreen} />
+      <Stack.Screen name="User Projects" component={UserProjectScreen} />
+      <Stack.Screen name="Material" component={MaterialScreen} />
+      <Stack.Screen name="Add Material" component={AddMaterial} />
+      <Stack.Screen name="Edit Material" component={EditMaterial} />
 
       {/* Users Screen */}
-      <Stack.Screen name="AssignProjects" component={UserAssignProjectScreen} />
-      <Stack.Screen name="WorkHistory" component={WorkHistory} />
+      <Stack.Screen
+        name="Assign Projects"
+        component={UserAssignProjectScreen}
+      />
+      <Stack.Screen name="Work History" component={WorkHistory} />
+      <Stack.Screen name="Edit Work-History" component={EditWorkHistory} />
     </Stack.Navigator>
   );
 }

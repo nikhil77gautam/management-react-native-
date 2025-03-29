@@ -1,288 +1,385 @@
-import React, { useState, useEffect } from 'react';
+import React, {useEffect, useState} from 'react';
+import {useDispatch, useSelector} from 'react-redux';
+import {getProjectByProjectId} from '../Redux/Slices/editProjectScreenSlice';
+import {useNavigation, useRoute} from '@react-navigation/native';
+import {launchImageLibrary} from 'react-native-image-picker';
 import {
   View,
-  Text,
   TextInput,
-  TouchableOpacity,
-  StyleSheet,
+  Text,
   Alert,
+  StyleSheet,
   ScrollView,
   Image,
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useRoute } from '@react-navigation/native';
 import axios from 'axios';
-import moment from 'moment'; // Import Moment.js
-import { launchImageLibrary } from 'react-native-image-picker';
-import { baseUrl } from '../utils/api';
+import moment from 'moment';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {Picker} from '@react-native-picker/picker';
+import {baseUrl} from '../utils/api';
+import UploadImage from '../../Image/image.png';
 
 const EditProjectScreen = () => {
   const route = useRoute();
+  const dispatch = useDispatch();
   const navigation = useNavigation();
-  const { projectId } = route.params;
+  const {projectId} = route.params;
 
-  // States for project details
+  const project = useSelector(state => state.project.project);
+
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [thumbnails, setThumbnails] = useState([]);
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [selectMaterial, setSelectMaterial] = useState('');
 
-  // Fetch project details when the screen is loaded
+  const [size, setSize] = useState('');
+  const [materials, setMaterials] = useState([]);
+  const [thumbnails, setThumbnails] = useState([]);
+  const [pdfFiles, setPdfFiles] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   useEffect(() => {
-    const fetchProjectDetails = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          Alert.alert('Error', 'User authentication failed.');
-          return;
-        }
+    dispatch(getProjectByProjectId(projectId));
+    fetchMaterials();
+  }, [dispatch, projectId]);
 
-        const response = await axios.get(`${baseUrl}/v1/get-project/${projectId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+  useEffect(() => {
+    if (project && project._id === projectId) {
+      setName(project.name || '');
+      setStartDate(
+        project.startDate ? moment(project.startDate).format('YYYY-MM-DD') : '',
+      );
+      setEndDate(
+        project.endDate ? moment(project.endDate).format('YYYY-MM-DD') : '',
+      );
+      setDescription(project.description || '');
+      setSelectMaterial(project.materialId._id || '');
+      setSize(project.size || '');
+      // setThumbnails(
+      //   Array.isArray(project.projectThumbnail) ? project.projectThumbnail : [],
+      // );
+      setPdfFiles(project.projectPdf || '');
+    }
+  }, [project, projectId]);
 
-        const project = response?.data?.project;
-        setName(project?.name || '');
-        setStartDate(project?.startDate ? moment(project.startDate).format('YYYY-MM-DD') : '');
-        setEndDate(project?.endDate ? moment(project.endDate).format('YYYY-MM-DD') : '');
-        setThumbnails(Array.isArray(project?.thumbnails) ? project.thumbnails : []);
-        setDescription(project?.description || '');
-      } catch (error) {
-        console.error('Error fetching project details:', error);
-        Alert.alert('Error', 'Failed to fetch project details.');
-      } finally {
-        setLoading(false);
-      }
+  const fetchMaterials = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token)
+        return Alert.alert('Error', 'No token found. Please login again.');
+
+      const response = await axios.get(`${baseUrl}/v1/get-material`, {
+        headers: {Authorization: `Bearer ${token}`},
+      });
+      setMaterials(response.data.materials || []);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to fetch materials.');
+      console.error('Material fetch error:', error);
+    }
+  };
+
+  const handleImagePicker = async () => {
+    const options = {mediaType: 'photo', quality: 1, selectionLimit: 5};
+    const response = await launchImageLibrary(options);
+
+    if (response.assets) {
+      setThumbnails(prev => [...prev, ...response.assets]);
+    }
+  };
+
+  const handleRemoveImage = index => {
+    setThumbnails(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePdfPicker = async () => {
+    const options = {
+      mediaType: 'mixed',
+      // type: ['application/pdf'], // Only allows PDFs
     };
+    const response = await launchImageLibrary(options);
 
-    fetchProjectDetails();
-  }, [projectId]);
-
-  // Function to handle selecting multiple images
-  const handleAddThumbnails = () => {
-    launchImageLibrary(
-      { mediaType: 'photo', selectionLimit: 10 },
-      (response) => {
-        if (response.didCancel) {
-          console.log('User cancelled image picker');
-        } else if (response.errorMessage) {
-          console.log('ImagePicker Error: ', response.errorMessage);
-        } else if (response.assets) {
-          const selectedImages = response.assets.map((asset) => asset.uri);
-          setThumbnails((prev) => [...prev, ...selectedImages]); // Append new images
-        }
-      }
-    );
+    if (response.assets && response.assets.length > 0) {
+      setPdfFiles(response.assets[0]);
+    }
   };
 
-  // Function to remove a selected thumbnail
-  const handleRemoveThumbnail = (index) => {
-    setThumbnails((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Update project function
   const handleUpdateProject = async () => {
     try {
+      setIsLoading(true);
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         Alert.alert('Error', 'User authentication failed.');
         return;
       }
-
-      const formattedStartDate = moment(startDate, 'YYYY-MM-DD', true).isValid()
-        ? moment(startDate).format('YYYY-MM-DD')
-        : moment().format('YYYY-MM-DD'); // Fallback to today's date if invalid
-
-      const formattedEndDate = moment(endDate, 'YYYY-MM-DD', true).isValid()
-        ? moment(endDate).format('YYYY-MM-DD')
-        : moment().format('YYYY-MM-DD');
-
-      // Create FormData object
       const formData = new FormData();
       formData.append('name', name);
       formData.append('description', description);
-      formData.append('startDate', formattedStartDate);
-      formData.append('endDate', formattedEndDate);
-
-      // Append all thumbnails
-      thumbnails.forEach((thumbnailUri, index) => {
-        const fileExtension = thumbnailUri.split('.').pop(); 
+      formData.append('startDate', startDate);
+      formData.append('endDate', endDate);
+      formData.append('materialId', selectMaterial);
+      formData.append('size', size);
+      thumbnails.forEach((image, index) => {
         formData.append('projectThumbnail', {
-          uri: thumbnailUri,
-          name: `thumbnail_${index + 1}.${fileExtension}`,
-          type: `image/${fileExtension}`,
+          uri: image.uri,
+          type: image.type || 'image/jpeg',
+          name: image.fileName || `thumbnail${index}.jpg`,
         });
       });
-
-      await axios.put(`${baseUrl}/v1/update-project/${projectId}/projectThumbnail`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
+      if (pdfFiles) {
+        formData.append('projectPdf', {
+          uri: pdfFiles.uri,
+          type: 'image/jpeg',
+          // type: 'application/pdf',
+          name: pdfFiles.fileName || 'document.pdf',
+        });
+      }
+      const res = await axios.put(
+        `${baseUrl}/v1/update-project/:projectThumbnail/:projectPdf/${projectId}`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
         },
-      });
+      );
 
-      Alert.alert('Success', 'Project updated successfully.');
-      navigation.goBack();
+      if (res.data.success) {
+        Alert.alert('Success', 'Project updated successfully.');
+        navigation.goBack();
+      }
     } catch (error) {
       console.error('Error updating project:', error);
       Alert.alert('Error', 'Failed to update project.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (loading) {
-    return <Text style={styles.loadingText}>Loading project details...</Text>;
-  }
-
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.heading}>Edit Project</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="Project Name"
+          value={name}
+          onChangeText={setName}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Start Date (YYYY-MM-DD)"
+          value={startDate}
+          onChangeText={setStartDate}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="End Date (YYYY-MM-DD)"
+          value={endDate}
+          onChangeText={setEndDate}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Description"
+          value={description}
+          onChangeText={setDescription}
+          multiline
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Size"
+          value={size}
+          onChangeText={setSize}
+        />
+        <Picker
+          selectedValue={selectMaterial}
+          onValueChange={setSelectMaterial}
+          style={styles.picker}>
+          <Picker.Item label="-- Select Material --" value={null} />
+          {materials.map(material => (
+            <Picker.Item
+              key={material._id}
+              label={material.name}
+              value={material._id}
+            />
+          ))}
+        </Picker>
 
-      {/* Project Name */}
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        style={styles.input}
-        placeholder="Project Name"
-      />
+        <TouchableOpacity style={styles.pdfLabel} onPress={handlePdfPicker}>
+          <Text style={styles.pdf}>Upload PDF</Text>
 
-      {/* Start Date */}
-      <TextInput
-        value={startDate}
-        onChangeText={setStartDate}
-        style={styles.input}
-        placeholder="Start Date (YYYY-MM-DD)"
-      />
+          {pdfFiles && (
+            <View style={styles.fileContainer}>
+              <Image
+                source={require('../../Image/pdf.png')}
+                style={styles.pdfIcon}
+              />
+              <Text style={styles.fileName}>
+                {pdfFiles.fileName || pdfFiles}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
-      {/* End Date */}
-      <TextInput
-        value={endDate}
-        onChangeText={setEndDate}
-        style={styles.input}
-        placeholder="End Date (YYYY-MM-DD)"
-      />
-
-      {/* Thumbnails Section */}
-      <Text style={styles.label}>Thumbnails</Text>
-      <TouchableOpacity onPress={handleAddThumbnails} style={styles.uploadButton}>
-        <Text style={styles.uploadButtonText}>+ Upload Thumbnails</Text>
-      </TouchableOpacity>
-
-      {/* Display selected images */}
-      <View style={styles.thumbnailContainer}>
-        {thumbnails.map((thumbnail, index) => (
-          <View key={index} style={styles.thumbnailWrapper}>
-            <Image source={{ uri: thumbnail }} style={styles.thumbnailImage} />
-            <TouchableOpacity onPress={() => handleRemoveThumbnail(index)} style={styles.removeButton}>
-              <Text style={styles.removeButtonText}>X</Text>
-            </TouchableOpacity>
+        <TouchableOpacity style={styles.buttonn} onPress={handleImagePicker}>
+          <View style={styles.statusUploadContainer}>
+            <Image source={UploadImage} style={styles.statusUploadImage} />
+            <Text style={styles.statusUploadText}>Upload Image</Text>
           </View>
-        ))}
-      </View>
+        </TouchableOpacity>
 
-      {/* Description */}
-      <Text style={styles.label}>Description</Text>
-      <TextInput
-        value={description}
-        onChangeText={setDescription}
-        style={styles.descriptionInput}
-        placeholder="Enter project description"
-        multiline
-      />
+        {thumbnails.length > 0 && (
+          <ScrollView horizontal style={styles.thumbnailContainer}>
+            {thumbnails.map((image, index) => {
+              // Check if image is a full URI or just a filename
+              const imageUri = image.uri
+                ? image.uri
+                : `${baseUrl}/uploads/projectThumbnail/${image}`;
 
-      {/* Save Button */}
-      <TouchableOpacity onPress={handleUpdateProject} style={styles.saveButton}>
-        <Text style={styles.saveButtonText}>Save</Text>
-      </TouchableOpacity>
+              return (
+                <View key={index} style={styles.imageWrapper}>
+                  <Image source={{uri: imageUri}} style={styles.thumbnail} />
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => handleRemoveImage(index)}>
+                    <Text style={styles.removeButtonText}>X</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {isLoading && <ActivityIndicator size="large" color="#007bff" />}
+        <TouchableOpacity
+          style={styles.updateButton}
+          onPress={handleUpdateProject}>
+          <Text style={styles.buttonTextt}>Update Project</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#f5f5f5',
-  },
-  heading: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
+  container: {flex: 1, padding: 20, backgroundColor: '#f9f9f9'},
   input: {
-    borderWidth: 1,
+    height: 50,
     borderColor: '#ccc',
-    padding: 10,
-    marginBottom: 15,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-  },
-  label: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingLeft: 10,
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
     marginBottom: 10,
   },
-  uploadButton: {
-    backgroundColor: '#007BFF',
+  button: {
+    backgroundColor: 'black',
     padding: 10,
-    borderRadius: 8,
+    borderRadius: 20,
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 10,
   },
-  uploadButtonText: {
-    color: '#fff',
+  buttonTextt: {color: '#fff', fontSize: 16},
+  statusUploadContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+  },
+  statusUploadImage: {
+    width: 30,
+    height: 30,
+    resizeMode: 'contain',
+    marginRight: 10,
+  },
+  statusUploadText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    color: '#333',
+    textAlignVertical: 'center',
+    lineHeight: 30,
   },
-  descriptionInput: {
-    height: 120,
+  buttonn: {
+    padding: 15,
+    borderRadius: 20,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  updateButton: {
+    backgroundColor: 'black',
+    padding: 15,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  picker: {
+    height: 50,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    marginBottom: 10,
+    paddingLeft: 10,
+    fontSize: 16,
+  },
+
+  fileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  pdf: {
+    color: 'blue',
+    fontSize: 18,
+  },
+
+  pdfLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 8,
-    backgroundColor: '#fff',
     padding: 10,
-    textAlignVertical: 'top',
-    marginBottom: 15,
+    justifyContent: 'space-between',
+    borderRadius: 20,
+    marginBottom: 10,
+    backgroundColor: '#f5f5f5',
   },
-  saveButton: {
-    backgroundColor: '#4CAF50',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+
+  pdfIcon: {
+    width: 24,
+    height: 24,
   },
   thumbnailContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    marginTop: 10,
   },
-  thumbnailWrapper: {
-    margin: 5,
+  imageWrapper: {
     position: 'relative',
+    marginRight: 10,
   },
-  thumbnailImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    marginBottom: 5,
+
+  thumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
   },
   removeButton: {
     position: 'absolute',
     top: 0,
-    right: 0,
+    right: -5,
     backgroundColor: 'red',
-    borderRadius: 50,
-    padding: 5,
+    borderRadius: 20,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   removeButtonText: {
     color: '#fff',
+    fontSize: 12,
     fontWeight: 'bold',
   },
 });

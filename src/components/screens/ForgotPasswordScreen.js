@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Image,
 } from 'react-native';
 import axios from 'axios';
-import {baseUrl} from '../utils/api'; // Make sure this import is correctly set up
+import {baseUrl} from '../utils/api';
 
 const ForgotPasswordScreen = ({navigation}) => {
   const [email, setEmail] = useState('');
@@ -30,24 +31,19 @@ const ForgotPasswordScreen = ({navigation}) => {
           'Success',
           response.data.message || 'OTP sent to your email.',
         );
-        // Navigate to OTP verification screen
-        navigation.navigate('OtpVerification');
+        navigation.navigate('Otp Verification');
       } else {
-        // Handle other successful statuses but not 200 (if needed)
         Alert.alert('Error', 'Something went wrong. Please try again.');
       }
     } catch (error) {
       if (error.response) {
-        // Server responded with an error (status code outside 2xx)
         Alert.alert(
           'Error',
           error.response.data.message || 'Failed to send OTP.',
         );
       } else if (error.request) {
-        // No response from server
         Alert.alert('Error', 'Server did not respond. Please try again.');
       } else {
-        // Something else went wrong
         Alert.alert('Error', `Something went wrong: ${error.message}`);
       }
     } finally {
@@ -57,17 +53,25 @@ const ForgotPasswordScreen = ({navigation}) => {
 
   return (
     <View style={styles.container}>
+      <Image
+        source={{
+          uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSaWhGeDO8au9Mvrj3boBbs47USEU63HSGTSw&s',
+        }}
+        style={styles.image}
+      />
       <Text style={styles.title}>Forgot Password</Text>
+      <Text style={styles.subtitle}>Enter your email to receive an OTP</Text>
       <TextInput
         style={styles.input}
-        placeholder="Email"
+        placeholder="Enter your email"
+        placeholderTextColor="#aaa"
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
       />
       <TouchableOpacity
-        style={[styles.button, loading && {backgroundColor: '#ccc'}]}
+        style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleSendOTP}
         disabled={loading}>
         <Text style={styles.buttonText}>
@@ -82,31 +86,62 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
+    backgroundColor: 'white',
+  },
+  image: {
+    width: 180,
+    height: 180,
+    resizeMode: 'contain',
+    marginBottom: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#555',
     marginBottom: 20,
     textAlign: 'center',
   },
   input: {
+    width: '100%',
     borderWidth: 1,
     borderColor: '#ccc',
-    padding: 10,
-    marginVertical: 10,
-    borderRadius: 5,
+    padding: 14,
+    borderRadius: 30,
+    backgroundColor: '#fff',
+    fontSize: 16,
+    color: '#333',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    marginBottom: 15,
   },
   button: {
-    backgroundColor: '#007bff',
+    width: '100%',
+    backgroundColor: 'black',
     padding: 15,
-    borderRadius: 5,
+    borderRadius: 30,
     alignItems: 'center',
-    marginVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  buttonDisabled: {
+    backgroundColor: '#555',
   },
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+    fontSize: 18,
   },
 });
 

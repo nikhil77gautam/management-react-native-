@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   Text,
@@ -8,106 +8,95 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import axios from 'axios';
-import { baseUrl } from '../utils/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useDispatch, useSelector} from 'react-redux';
+import {
+  fetchProjectsByUserId,
+  clearProjects,
+} from '../Redux/Slices/userProjectByUserIdSlice';
+import {baseUrl} from '../utils/api';
 
-const UserProjectScreen = ({ route }) => {
-  const { userId } = route.params;
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+const UserProjectScreen = ({route}) => {
+  const {userId} = route.params;
+  const dispatch = useDispatch();
+  const {
+    data: projects,
+    loading,
+    error,
+  } = useSelector(state => state.userProjects);
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          Alert.alert('Error', 'No token found. Please login again.');
-          return;
-        }
+    dispatch(fetchProjectsByUserId(userId));
 
-        const response = await axios.get(
-          `${baseUrl}/v1/get-user-project/${userId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        setProjects(response.data.projects || []);
-      } catch (error) {
-        console.error('Error fetching projects:', error.response?.data || error);
-        Alert.alert('Error', 'Failed to fetch projects.');
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      dispatch(clearProjects());
     };
+  }, [dispatch, userId]);
 
-    fetchProjects();
-  }, [userId]);
+  if (loading) {
+    return (
+      <ActivityIndicator size="large" color="#007bff" style={styles.loading} />
+    );
+  }
+
+  if (error) {
+    return <Text style={styles.errorText}>{error}</Text>;
+  }
+
+  if (!projects || projects.length === 0) {
+    return <Text style={styles.noProjectsText}>No projects found.</Text>;
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Projects for User:</Text>
-      {loading ? (
-        <ActivityIndicator size="large" color="#007bff" style={styles.loading} />
-      ) : projects.length === 0 ? (
-        <Text style={styles.noProjectsText}>No projects found.</Text>
-      ) : (
-        <FlatList
-          data={projects}
-          keyExtractor={item => String(item._id)}
-          renderItem={({ item, index }) => (
-            <View style={styles.projectItem}>
-              {/* Display Serial Number */}
-              <Text style={styles.serialNumber}>{index + 1}.</Text>
+      <FlatList
+        data={projects}
+        keyExtractor={item => String(item._id)}
+        renderItem={({item, index}) => (
+          <View style={styles.projectItem}>
+            <Text style={styles.serialNumber}>{index + 1}.</Text>
 
-              <View style={styles.projectDetails}>
-                {/* Project Name */}
-                <Text style={styles.projectName}>{item.projectId.name}</Text>
-
-                {/* Project Description */}
-                <Text style={styles.projectDescription}>
-                  {item.projectId.description}
-                </Text>
-
-                {/* Display Project Status */}
-                <Text style={styles.projectStatus}>
-                  Status: {item.status}
-                </Text>
-
-                {/* Display Project Start Date */}
-                <Text style={styles.projectDate}>
-                  Start Date: {new Date(item.projectId.startDate).toLocaleDateString()}
-                </Text>
-
-                {/* Display Project End Date */}
-                <Text style={styles.projectDate}>
-                  End Date: {new Date(item.projectId.endDate).toLocaleDateString()}
-                </Text>
-
-                {/* Display Project Created At */}
-                <Text style={styles.projectDate}>
-                  Created At: {new Date(item.createdAt).toLocaleDateString()}
-                </Text>
-              </View>
-
-              {/* Multiple Project Thumbnails */}
-              {item?.projectId?.projectThumbnail && item?.projectId?.projectThumbnail?.length > 0 && (
-                <View style={styles.thumbnailBox}>
-                  {item?.projectId?.projectThumbnail?.map((thumbnail, index) => (
-                    <Image
-                      key={index}
-                      source={{
-                        uri: `${baseUrl}/uploads/projectThumbnail/${thumbnail}`,
-                      }}
-                      style={styles.projectThumbnail}
-                    />
-                  ))}
-                </View>
-              )}
+            <View style={styles.projectDetails}>
+              <Text style={styles.projectName}>
+                {item.projectId?.name || 'Unnamed Project'}
+              </Text>
+              <Text style={styles.projectDescription}>
+                {item.projectId?.description || 'No description available.'}
+              </Text>
+              <Text style={styles.projectStatus}>Status: {item.status}</Text>
+              <Text style={styles.projectDate}>
+                Start Date:{' '}
+                {item.projectId?.startDate
+                  ? new Date(item.projectId.startDate).toLocaleDateString()
+                  : 'N/A'}
+              </Text>
+              <Text style={styles.projectDate}>
+                End Date:{' '}
+                {item.projectId?.endDate
+                  ? new Date(item.projectId.endDate).toLocaleDateString()
+                  : 'N/A'}
+              </Text>
+              <Text style={styles.projectDate}>
+                Created At: {new Date(item.createdAt).toLocaleDateString()}
+              </Text>
             </View>
-          )}
-        />
-      )}
+
+            {item?.projectId?.projectThumbnail?.length > 0 && (
+              <View style={styles.thumbnailBox}>
+                {item.projectId.projectThumbnail.map((thumbnail, idx) => (
+                  <Image
+                    key={idx}
+                    source={{
+                      uri: `${baseUrl}/uploads/projectThumbnail/${thumbnail}`,
+                    }}
+                    style={styles.projectThumbnail}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+      />
     </View>
   );
 };
@@ -124,6 +113,14 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 18,
+    color: 'red',
+    textAlign: 'center',
     marginTop: 20,
   },
   noProjectsText: {
@@ -141,7 +138,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
-    flexDirection: 'column',
   },
   serialNumber: {
     fontSize: 18,
@@ -150,7 +146,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   projectDetails: {
-    marginBottom: 15, // Add space before the thumbnail box
+    marginBottom: 10,
   },
   projectName: {
     fontSize: 18,
@@ -174,20 +170,18 @@ const styles = StyleSheet.create({
   },
   thumbnailBox: {
     flexDirection: 'row',
-    flexWrap: 'wrap', // Allows thumbnails to wrap onto the next line
+    flexWrap: 'wrap',
     marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
     padding: 10,
     borderRadius: 8,
-    backgroundColor: '#f9f9f9', // Light background for the box
+    backgroundColor: '#f9f9f9',
   },
   projectThumbnail: {
     width: 100,
     height: 100,
-    borderRadius: 8, // Rounded corners for the thumbnail
-    marginRight: 10, // Space between images
-    marginBottom: 10, // Space between rows of images
+    borderRadius: 8,
+    marginRight: 10,
+    marginBottom: 10,
   },
 });
 

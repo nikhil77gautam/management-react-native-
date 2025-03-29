@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -10,73 +10,53 @@ import {
   TextInput,
 } from 'react-native';
 import axios from 'axios';
-import {useNavigation} from '@react-navigation/native';
+import {useDispatch, useSelector} from 'react-redux';
+import {fetchUserDetails} from '../Redux/Slices/userDetailsSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'react-native-image-picker';
 import {baseUrl} from '../utils/api';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import CircleCamera from '../../Image/circle.png';
+import EditPen from '../../Image/pen.png';
 
 const ProfileScreen = () => {
-  const navigation = useNavigation();
-  const [profileData, setProfileData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [isEditing, setIsEditing] = useState({
-    name: false,
-    phone: false,
-  });
+  const dispatch = useDispatch();
+  const {userDetail, loading, error} = useSelector(state => state.userDetail);
+  const [isEditing, setIsEditing] = useState({name: false, phone: false});
   const [updatedName, setUpdatedName] = useState('');
   const [updatedPhone, setUpdatedPhone] = useState('');
+  const [updating, setUpdating] = useState(false);
 
-  const fetchProfile = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'No token found. Please log in again.');
-        setLoading(false);
-        return;
-      }
+  useEffect(() => {
+    dispatch(fetchUserDetails());
+  }, [dispatch]);
 
-      const response = await axios.get(`${baseUrl}/v1/user-detail`, {
-        headers: {Authorization: `Bearer ${token}`},
-      });
-
-      if (response?.data?.user) {
-        setProfileData(response.data.user);
-        setUpdatedName(response.data.user.name);
-        setUpdatedPhone(response.data.user.phone);
-      } else {
-        Alert.alert('Error', 'Profile data is incomplete or invalid.');
-      }
-      setLoading(false);
-    } catch (error) {
-      Alert.alert('Error', 'Unable to fetch profile. Please try again.');
-      setLoading(false);
+  useEffect(() => {
+    if (userDetail) {
+      setUpdatedName(userDetail.name);
+      setUpdatedPhone(userDetail.phone);
     }
-  };
+  }, [userDetail]);
 
   const updateUserPhone = async value => {
     try {
       setUpdating(true);
       const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'No token found. Please log in again.');
-        setUpdating(false);
-        return;
-      }
+      if (!token) throw new Error('No token found. Please log in again.');
+
       const response = await axios.put(
         `${baseUrl}/v1/update-phone`,
         {phone: value},
         {headers: {Authorization: `Bearer ${token}`}},
       );
+
       if (response.data.success) {
-        setProfileData(prev => ({...prev, phone: value}));
         Alert.alert('Success', 'Phone number updated successfully.');
+        dispatch(fetchUserDetails());
       } else {
-        Alert.alert('Error', 'Failed to update phone number.');
+        throw new Error('Failed to update phone number.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Unable to update phone number.');
+      Alert.alert('Error', error.message || 'Unable to update phone number.');
     }
     setUpdating(false);
     setIsEditing(prev => ({...prev, phone: false}));
@@ -86,24 +66,22 @@ const ProfileScreen = () => {
     try {
       setUpdating(true);
       const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'No token found. Please log in again.');
-        setUpdating(false);
-        return;
-      }
+      if (!token) throw new Error('No token found. Please log in again.');
+
       const response = await axios.put(
         `${baseUrl}/v1/update-name`,
         {name: value},
         {headers: {Authorization: `Bearer ${token}`}},
       );
+
       if (response.data.success) {
-        setProfileData(prev => ({...prev, name: value}));
         Alert.alert('Success', 'Name updated successfully.');
+        dispatch(fetchUserDetails());
       } else {
-        Alert.alert('Error', 'Failed to update name.');
+        throw new Error('Failed to update name.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Unable to update name.');
+      Alert.alert('Error', error.message || 'Unable to update name.');
     }
     setUpdating(false);
     setIsEditing(prev => ({...prev, name: false}));
@@ -113,11 +91,7 @@ const ProfileScreen = () => {
     try {
       setUpdating(true);
       const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'No token found. Please log in again.');
-        setUpdating(false);
-        return;
-      }
+      if (!token) throw new Error('No token found. Please log in again.');
 
       const formData = new FormData();
       formData.append('profileThumbnail', {
@@ -138,16 +112,16 @@ const ProfileScreen = () => {
       );
 
       if (response.data.success) {
-        setProfileData(prev => ({
-          ...prev,
-          profileThumbnail: response.data.thumbnailPath,
-        }));
         Alert.alert('Success', 'Profile picture updated successfully.');
+        dispatch(fetchUserDetails());
       } else {
-        Alert.alert('Error', 'Failed to update profile picture.');
+        throw new Error('Failed to update profile picture.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Unable to update profile picture.');
+      Alert.alert(
+        'Error',
+        error.message || 'Unable to update profile picture.',
+      );
     }
     setUpdating(false);
   };
@@ -165,10 +139,6 @@ const ProfileScreen = () => {
     });
   };
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
   if (loading) {
     return (
       <View style={styles.container}>
@@ -177,93 +147,83 @@ const ProfileScreen = () => {
     );
   }
 
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Error: {error}</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {profileData ? (
+      {userDetail ? (
         <View style={styles.profileCard}>
           <TouchableOpacity
             onPress={pickImage}
             disabled={updating}
             style={styles.imageContainer}>
+            {/* Profile Image */}
             <Image
               source={{
-                uri: profileData.profileThumbnail
-                  ? `${baseUrl}/uploads/profileThumbnail/${profileData.profileThumbnail}`
-                  : 'https://static.vecteezy.com/system/resources/previews/021/548/095/non_2x/default-profile-picture-avatar-user-avatar-icon-person-icon-head-icon-profile-picture-icons-default-anonymous-user-male-and-female-businessman-photo-placeholder-social-network-avatar-portrait-free-vector.jpg',
+                uri: userDetail.profileThumbnail
+                  ? `${baseUrl}/uploads/profileThumbnail/${userDetail.profileThumbnail}`
+                  : 'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg?semt=ais_hybrid',
               }}
               style={styles.profileImage}
+              onError={e =>
+                console.log('Error loading image:', e.nativeEvent.error)
+              }
             />
-            <Icon name="edit" size={24} color="white" style={styles.editIcon} />
+
+            {/* Edit Icon Positioned Over Profile Image */}
+            <Image source={CircleCamera} style={styles.cameraIcon} />
           </TouchableOpacity>
 
           {/* Editable Name */}
           {isEditing.name ? (
-            <View style={styles.editField}>
-              <TextInput
-                style={styles.input}
-                value={updatedName}
-                onChangeText={setUpdatedName}
-                onBlur={() => updateUserName(updatedName)}
-              />
-              <TouchableOpacity
-                onPress={() => setIsEditing(prev => ({...prev, name: false}))}>
-                <Icon
-                  name="close"
-                  size={24}
-                  color="#ff0000"
-                  style={styles.cancelIcon}
-                />
-              </TouchableOpacity>
-            </View>
+            <TextInput
+              style={styles.input}
+              value={updatedName}
+              onChangeText={setUpdatedName}
+              onBlur={() => updateUserName(updatedName)}
+            />
           ) : (
             <TouchableOpacity
               onPress={() => setIsEditing(prev => ({...prev, name: true}))}>
-              <View style={styles.field}>
-                <Text style={styles.name}>{profileData.name}</Text>
-                <Icon name="edit" size={20} color="#007bff" />
-              </View>
+              <Text style={styles.name}>
+                {userDetail.name}{' '}
+                <Image source={EditPen} style={styles.editIcon} />
+              </Text>
             </TouchableOpacity>
           )}
 
           {/* Editable Phone */}
           {isEditing.phone ? (
-            <View style={styles.editField}>
-              <TextInput
-                style={styles.input}
-                value={updatedPhone}
-                onChangeText={setUpdatedPhone}
-                onBlur={() => updateUserPhone(updatedPhone)}
-                keyboardType="phone-pad"
-              />
-              <TouchableOpacity
-                onPress={() => setIsEditing(prev => ({...prev, phone: false}))}>
-                <Icon
-                  name="close"
-                  size={24}
-                  color="#ff0000"
-                  style={styles.cancelIcon}
-                />
-              </TouchableOpacity>
-            </View>
+            <TextInput
+              style={styles.input}
+              value={updatedPhone}
+              onChangeText={setUpdatedPhone}
+              onBlur={() => updateUserPhone(updatedPhone)}
+              keyboardType="phone-pad"
+            />
           ) : (
             <TouchableOpacity
               onPress={() => setIsEditing(prev => ({...prev, phone: true}))}>
-              <View style={styles.field}>
-                <Text style={styles.detailsText}>
-                  Phone: {profileData.phone}
-                </Text>
-                <Icon name="edit" size={20} color="#007bff" />
-              </View>
+              <Text style={styles.detailsText}>
+                Phone : {userDetail.phone}{' '}
+                <Image source={EditPen} style={styles.editIcon} />
+              </Text>
             </TouchableOpacity>
           )}
 
-          <Text style={styles.detailsText}>Role: {profileData.role}</Text>
+          <Text style={styles.detailsText}>Role : {userDetail.role}</Text>
           <Text style={styles.detailsText}>
-            Account Created:{' '}
-            {new Date(profileData.createdAt).toLocaleDateString()}
+            Account Created :{' '}
+            {new Date(userDetail.createdAt).toLocaleDateString()}
           </Text>
           <Text style={styles.detailsText}>
-            Last Updated: {new Date(profileData.updatedAt).toLocaleDateString()}
+            Last Updated : {new Date(userDetail.updatedAt).toLocaleDateString()}
           </Text>
         </View>
       ) : (
@@ -284,59 +244,71 @@ const styles = StyleSheet.create({
   profileCard: {
     width: '100%',
     maxWidth: 400,
+    height: '70%',
     backgroundColor: 'white',
-    borderRadius: 15,
+    borderRadius: 20,
     padding: 20,
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
   },
+
   imageContainer: {
+    width: 130,
+    height: 130,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
+    borderRadius: 65,
+    backgroundColor: '#f0f0f0',
+    overflow: 'hidden',
   },
+
   profileImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    marginBottom: 20,
     borderWidth: 2,
-    borderColor: '#007bff',
+    borderColor: '#fff',
+    backgroundColor: '#ddd',
   },
+
   editIcon: {
     position: 'absolute',
-    bottom: 10,
-    right: 10,
+    bottom: 2,
+    right: 5,
     backgroundColor: '#007bff',
-    borderRadius: 12,
-    padding: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
-  name: {fontSize: 26, fontWeight: 'bold', color: '#333', marginBottom: 10},
-  email: {fontSize: 18, color: '#666', marginBottom: 20},
-  detailsText: {fontSize: 16, color: '#333', marginBottom: 10},
+  cameraIcon: {
+    position: 'absolute',
+    bottom: 5,
+    right: 24,
+    fontSize: 22,
+    color: '#007bff',
+    padding: 6,
+    borderRadius: 20,
+    textAlign: 'center',
+    width: 30,
+    height: 30,
+    overflow: 'hidden',
+  },
+  name: {fontSize: 26, fontWeight: 'bold', color: '#333'},
+  detailsText: {fontSize: 16, color: '#333', fontWeight: 'semiBold'},
   input: {
     fontSize: 18,
-    color: '#333',
-    marginBottom: 20,
     borderBottomWidth: 1,
     borderColor: '#ccc',
-    padding: 5,
     width: '100%',
-  },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  editField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-  },
-  cancelIcon: {
-    marginLeft: 10,
   },
 });
 

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
+  StyleSheet,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Alert,
+  Image,
   KeyboardAvoidingView,
   ScrollView,
   Platform,
@@ -13,44 +14,43 @@ import {
   Keyboard,
 } from 'react-native';
 import axios from 'axios';
-import { baseUrl } from '../utils/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {baseUrl} from '../utils/api';
 
-const OtpVerificationScreen = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [otpcode, setOtpCode] = useState('');
-  const [password, setPassword] = useState('');
+const ResetPasswordScreen = ({navigation}) => {
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleVerifyOtp = async () => {
-    if (!email || !otpcode || !password) {
-      Alert.alert('Error', 'Please fill in all fields.');
+  const handleResetPassword = async () => {
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'New password and confirm password do not match.');
       return;
     }
 
-    setLoading(true);
-
     try {
-      const response = await axios.post(`${baseUrl}/v1/forget-password`, {
-        email,
-        otpcode, 
-        password,
-      });
+      setLoading(true);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'No token found. Please log in again.');
+        setLoading(false);
+        return;
+      }
 
-      if (response.data.success) {
-        Alert.alert(
-          'Success',
-          response.data.message || 'OTP verified and password reset successfully.'
-        );
-        navigation.navigate('Login'); 
-      } else {
-        Alert.alert('Error', response.data.message || 'Invalid OTP or email.');
-      }
+      // Update password
+      const response = await axios.put(
+        `${baseUrl}/v1/edit-password`,
+        {oldPassword, newPassword},
+        {headers: {Authorization: `Bearer ${token}`}},
+      );
+
+      Alert.alert('Success', 'Password updated successfully.');
+      // Navigate back to ProfileScreen
+      navigation.goBack();
     } catch (error) {
-      if (error.response) {
-        Alert.alert('Error', error.response.data.message || 'Invalid OTP or email.');
-      } else {
-        Alert.alert('Error', 'Unable to connect to the server. Please try again.');
-      }
+      console.error('Error resetting password:', error);
+      Alert.alert('Error', 'Failed to update password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -59,39 +59,49 @@ const OtpVerificationScreen = ({ navigation }) => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 }}>
+      style={{flex: 1}}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>OTP Verification</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
+          <Image
+            source={{
+              uri: 'https://t4.ftcdn.net/jpg/07/02/07/11/360_F_702071196_LpQx8lgLSOCroEi6PV0rQl4QAt0cDlzK.jpg',
+            }}
+            style={styles.image}
           />
+          <Text style={styles.title}>Reset Password</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter OTP"
-            value={otpcode}
-            onChangeText={setOtpCode}
-            keyboardType="numeric"
-            maxLength={6}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Enter New Password"
-            value={password}
-            onChangeText={setPassword}
+            placeholder="Old Password"
+            placeholderTextColor="#aaa"
             secureTextEntry
+            value={oldPassword}
+            onChangeText={setOldPassword}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="New Password"
+            placeholderTextColor="#aaa"
+            secureTextEntry
+            value={newPassword}
+            onChangeText={setNewPassword}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Confirm New Password"
+            placeholderTextColor="#aaa"
+            secureTextEntry
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
           />
           <TouchableOpacity
-            style={[styles.button, loading && { backgroundColor: '#ccc' }]}
-            onPress={handleVerifyOtp}
+            style={[styles.submitButton, loading && styles.buttonDisabled]}
+            onPress={handleResetPassword}
             disabled={loading}>
-            <Text style={styles.buttonText}>{loading ? 'Verifying...' : 'Verify OTP & Reset Password'}</Text>
+            <Text style={styles.submitButtonText}>
+              {loading ? 'Updating...' : 'Update Password'}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </TouchableWithoutFeedback>
@@ -103,32 +113,49 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
+    backgroundColor: 'white',
+  },
+  image: {
+    width: 180,
+    height: 180,
+    resizeMode: 'contain',
+    marginBottom: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: 'black',
     marginBottom: 20,
     textAlign: 'center',
   },
   input: {
+    width: '100%',
+    height: 50,
+    borderColor: 'black',
     borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
-    marginVertical: 10,
-    borderRadius: 5,
-  },
-  button: {
-    backgroundColor: '#007bff',
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginVertical: 10,
-  },
-  buttonText: {
+    borderRadius: 20,
+    marginBottom: 15,
+    paddingLeft: 10,
     color: '#fff',
+    backgroundColor: 'white',
+  },
+  submitButton: {
+    width: '100%',
+    backgroundColor: 'black',
+    paddingVertical: 12,
+    borderRadius: 30,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    backgroundColor: '#555',
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });
 
-export default OtpVerificationScreen;
+export default ResetPasswordScreen;

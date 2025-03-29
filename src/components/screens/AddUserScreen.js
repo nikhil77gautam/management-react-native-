@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,16 @@ import {
   StyleSheet,
   Alert,
   Image,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation} from '@react-navigation/native';
 import {launchImageLibrary} from 'react-native-image-picker';
 import {baseUrl} from '../utils/api';
+import {fetchAllUsers} from '../Redux/Slices/allUserSlice';
+import {useDispatch, useSelector} from 'react-redux';
 
 const AddUserScreen = () => {
   const navigation = useNavigation();
@@ -22,49 +26,40 @@ const AddUserScreen = () => {
   const [password, setPassword] = useState('');
   const [profileImage, setProfileImage] = useState(null);
 
-  // Function to handle image selection
-  const selectImage = () => {
-    const options = {
-      mediaType: 'photo',
-      maxWidth: 300,
-      maxHeight: 300,
-      quality: 1,
-    };
+  const dispatch = useDispatch();
 
-    launchImageLibrary(options, response => {
-      console.log(response); // Debug log for response
+  useEffect(() => {
+    dispatch(fetchAllUsers());
+  }, [dispatch]);
+
+  // Function to handle image selection
+  const selectImage = async () => {
+    try {
+      const options = {
+        mediaType: 'photo',
+        quality: 1,
+      };
+
+      const response = await launchImageLibrary(options);
 
       if (response.didCancel) {
         console.log('User cancelled image picker');
         return;
       }
-
       if (response.errorMessage) {
         console.error('Image picker error:', response.errorMessage);
         return;
       }
-
       if (response.assets && response.assets.length > 0) {
         const selectedImage = response.assets[0];
-
-        // Debug log for selected image
-        console.log('Selected image:', selectedImage);
-
-        // Ensure the selected image has all necessary fields before setting state
-        if (selectedImage.uri && selectedImage.fileName && selectedImage.type) {
-          setProfileImage(selectedImage);
-        } else {
-          console.error('Image data is missing necessary fields');
-          Alert.alert(
-            'Error',
-            'The selected image does not have the correct data.',
-          );
-        }
+        setProfileImage(selectedImage);
       } else {
-        console.error('No assets found in the image picker response');
         Alert.alert('Error', 'No image selected');
       }
-    });
+    } catch (error) {
+      console.error('Image picker exception:', error);
+      Alert.alert('Error', 'Something went wrong while picking an image.');
+    }
   };
 
   // Function to handle user registration
@@ -81,7 +76,6 @@ const AddUserScreen = () => {
     try {
       const token = await AsyncStorage.getItem('token');
 
-      // Create FormData object
       const formData = new FormData();
       formData.append('name', name);
       formData.append('phone', phone);
@@ -93,7 +87,6 @@ const AddUserScreen = () => {
         type: profileImage.type,
       });
 
-      // Post to the backend
       const response = await axios.post(
         `${baseUrl}/v1/user-register/:profileThumbnail`,
         formData,
@@ -105,22 +98,31 @@ const AddUserScreen = () => {
         },
       );
 
-      Alert.alert(
-        'Success',
-        'User added successfully. Please verify user email before logging in.',
-      );
-
-      // Navigate back to the user list
+      Alert.alert('Success', 'User added successfully.');
+      dispatch(fetchAllUsers());
       navigation.goBack();
     } catch (error) {
-      console.error('Error adding user:', error.response?.data || error);
-      Alert.alert('Error', 'Failed to add user');
+      console.log('Error adding user:', error.response?.data?.message || error);
+      Alert.alert(error.response?.data?.message);
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Add New User :</Text>
+      <Text style={styles.title}>Add New User</Text>
+
+      {/* Profile Image Upload Circle */}
+      <TouchableOpacity onPress={selectImage} style={styles.imageContainer}>
+        <Image
+          source={{
+            uri: profileImage
+              ? profileImage.uri
+              : 'https://img.freepik.com/premium-vector/man-avatar-profile-picture-vector-illustration_268834-538.jpg?semt=ais_hybrid',
+          }}
+          style={styles.image}
+        />
+      </TouchableOpacity>
+
       <TextInput
         style={styles.input}
         placeholder="Name"
@@ -129,7 +131,7 @@ const AddUserScreen = () => {
       />
       <TextInput
         style={styles.input}
-        placeholder="Phone Number"
+        placeholder="Phone"
         value={phone}
         onChangeText={setPhone}
         keyboardType="phone-pad"
@@ -149,19 +151,6 @@ const AddUserScreen = () => {
         secureTextEntry
       />
 
-      {/* Profile Image Preview */}
-      {profileImage && (
-        <Image source={{uri: profileImage.uri}} style={styles.imagePreview} />
-      )}
-
-      {/* Select Profile Image Button */}
-      <TouchableOpacity style={styles.uploadButton} onPress={selectImage}>
-        <Text style={styles.uploadButtonText}>
-          {profileImage ? 'Change Image' : 'Upload Profile Image'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Add User Button */}
       <TouchableOpacity style={styles.addButton} onPress={handleAddUser}>
         <Text style={styles.addButtonText}>Add User</Text>
       </TouchableOpacity>
@@ -170,7 +159,11 @@ const AddUserScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1, padding: 20, backgroundColor: '#f9f9f9'},
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#f9f9f9',
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -181,33 +174,41 @@ const styles = StyleSheet.create({
     height: 50,
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 8,
+    borderRadius: 20,
     marginBottom: 15,
     paddingHorizontal: 10,
     backgroundColor: '#fff',
   },
-  imagePreview: {
+  imageContainer: {
+    alignSelf: 'center',
     width: 100,
     height: 100,
     borderRadius: 50,
-    alignSelf: 'center',
-    marginBottom: 10,
-  },
-  uploadButton: {
-    backgroundColor: '#28a745',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: '#ddd',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
   },
-  uploadButtonText: {color: '#fff', fontSize: 16},
+  image: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  uploadText: {
+    color: '#666',
+    fontSize: 14,
+  },
   addButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: 'black',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: 20,
     alignItems: 'center',
   },
-  addButtonText: {color: '#fff', fontSize: 18, fontWeight: 'bold'},
+  addButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
 });
 
 export default AddUserScreen;

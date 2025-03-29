@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -11,14 +11,36 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {baseUrl} from '../utils/api';
+import {useDispatch, useSelector} from 'react-redux';
+import {fetchUserDetailById} from '../Redux/Slices/userDetailByIdSlice';
+import {fetchAllUsers} from '../Redux/Slices/allUserSlice';
 
 const EditUserScreen = () => {
+  const dispatch = useDispatch();
   const navigation = useNavigation();
   const route = useRoute();
-  const {userId, name: initialName, phone: initialPhone} = route.params;
- 
-  const [name, setName] = useState(initialName || '');
-  const [phone, setPhone] = useState(initialPhone || '');
+  const {userId} = route.params;
+  const {userDetailById: EditData, loading} = useSelector(
+    state => state.userDetailById,
+  );
+
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // Fetch user details when component mounts
+  useEffect(() => {
+    dispatch(fetchAllUsers());
+    dispatch(fetchUserDetailById(userId));
+  }, [dispatch, userId]);
+
+  // Debugging: Check EditData
+  useEffect(() => {
+    console.log('EditData:', EditData);
+    if (EditData) {
+      setName(EditData.name || '');
+      setPhone(EditData.phone ? String(EditData.phone) : '');
+    }
+  }, [EditData]);
 
   const handleUpdateUser = async () => {
     if (!name || !phone) {
@@ -33,6 +55,12 @@ const EditUserScreen = () => {
 
     try {
       const token = await AsyncStorage.getItem('token');
+
+      if (!token) {
+        Alert.alert('Error', 'Authentication token is missing.');
+        return;
+      }
+
       await axios.put(
         `${baseUrl}/v1/update-user/${userId}`,
         {name, phone},
@@ -40,9 +68,14 @@ const EditUserScreen = () => {
       );
 
       Alert.alert('Success', 'User updated successfully!');
+      dispatch(fetchUserDetailById(userId));
+      dispatch(fetchAllUsers());
       navigation.goBack();
     } catch (error) {
-      console.error('Error updating user:', error.response?.data || error);
+      console.log(
+        'Error updating user:',
+        error?.response?.data?.message || error,
+      );
       Alert.alert('Error', 'Failed to update user.');
     }
   };
@@ -88,7 +121,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
-    color: '#007bff',
+    color: '#000',
   },
   label: {
     fontSize: 16,
@@ -105,7 +138,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   updateButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: '#000',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
